@@ -71,13 +71,15 @@
                 if ( isset($params['entity']) && $value['entity'] != $params['entity'] ) {
                     continue;
                 }
-                if ( isset($params['commodity']) && $value['entity'] != $params['commodity'] ) {
+                // Fix 1
+                if ( isset($params['commodity']) && $value['commodity'] != $params['commodity'] ) {
                     continue;
                 }
-                if ( isset($params['start_date']) && $value['start_date'] < strtotime($params['start_date']) ) {
+                if ( isset($params['start_date']) && $value['start_date'] < strtotime($params['start_date'] . " GMT") ) {
                     continue;
                 }
-                if ( isset($params['end_date']) && $value['end_date'] > strtotime($params['end_date']) ) {
+                // Fix 3
+                if ( isset($params['end_date']) && $value['end_date'] > strtotime($params['end_date'] . " GMT") ) {
                     continue;
                 }
                 $output[] = $value;
@@ -88,12 +90,38 @@
 
         public function list_volumes($id, $granularity = 'hourly') {
             $output = array();
+            $combinedData = [];
             foreach ($this->volumes as $key => $value) {
                 if ( $value['profile_id'] != $id ) {
                     continue;
                 }
+
                 $output[] = $value;
             }
+
+            if ($granularity == 'hourly') {
+                return $output;
+            }
+
+            $dateTrimStart = $granularity == 'daily' ? 0 : 3;
+
+            array_walk($output, function($value) use (&$combinedData, $dateTrimStart) {
+                if (array_key_exists($key = substr($value['datetime'], $dateTrimStart, -6), $combinedData)) {
+                    $combinedData[$key] = $combinedData[$key] + (int) $value['volume'];
+                } else {
+                    $combinedData[$key] = (int) $value['volume'];
+                }
+            });
+
+            unset($output);
+
+            array_walk($combinedData, function($value, $key) use (&$output, $id) {
+                $output[] = [
+                    'profile_id' => $id,
+                    'datetime' => $key,
+                    'volume' => $value,
+                ];
+            });
 
             return $output;
         }

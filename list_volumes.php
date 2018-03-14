@@ -16,7 +16,7 @@
             if  ( isset($_REQUEST['granularity']) ) {
                 $granularity = $_REQUEST['granularity'];
             }
-            $rows = $this->kyos_model->list_volumes($id);
+            $rows = $this->kyos_model->list_volumes($id, $granularity);
             include_once('kyos_view_volumes.php');
         }
     }

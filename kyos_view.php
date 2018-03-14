@@ -18,7 +18,8 @@
         <td><?php echo $row['name']; ?></td>
         <td><?php echo gmdate('d-m-Y', $row['start_date']); ?></td>
         <td><?php echo gmdate('d-m-Y', $row['end_date']); ?></td>
-        <td><a href="/list_volumes.php?id=<?php echo $key+1;?>">View volumes</a>
+        <!-- Fix 2 -->
+        <td><a href="/list_volumes.php?id=<?php echo $row['id'];?>">View volumes</a>
     </tr>
 <? } ?>
 </table>
