@@ -71,13 +71,15 @@
                 if ( isset($params['entity']) && $value['entity'] != $params['entity'] ) {
                     continue;
                 }
-                if ( isset($params['commodity']) && $value['entity'] != $params['commodity'] ) {
+                // Fix 1
+                if ( isset($params['commodity']) && $value['commodity'] != $params['commodity'] ) {
                     continue;
                 }
-                if ( isset($params['start_date']) && $value['start_date'] < strtotime($params['start_date']) ) {
+                if ( isset($params['start_date']) && $value['start_date'] < strtotime($params['start_date'] . " GMT") ) {
                     continue;
                 }
-                if ( isset($params['end_date']) && $value['end_date'] > strtotime($params['end_date']) ) {
+                // Fix 3
+                if ( isset($params['end_date']) && $value['end_date'] > strtotime($params['end_date'] . " GMT") ) {
                     continue;
                 }
                 $output[] = $value;
@@ -86,16 +88,73 @@
             return $output;
         }
 
-        public function list_volumes($id, $granularity = 'hourly') {
+        public function list_volumes($id, $granularity) {
+            $granularity = $granularity ? $granularity : 'hourly';
             $output = array();
+            $combinedData = [];
             foreach ($this->volumes as $key => $value) {
                 if ( $value['profile_id'] != $id ) {
                     continue;
                 }
+
                 $output[] = $value;
             }
 
+            if ($granularity == 'hourly') {
+                return $output;
+            }
+
+            // We trim datetime. For daily we will trim time part and for monthly also the day part
+            $dateTrimStart = $granularity == 'daily' ? 0 : 3;
+
+            array_walk($output, function($value) use (&$combinedData, $dateTrimStart) {
+                if (array_key_exists($key = substr($value['datetime'], $dateTrimStart, -6), $combinedData)) {
+                    $combinedData[$key] = $combinedData[$key] + (int) $value['volume'];
+                } else {
+                    $combinedData[$key] = (int) $value['volume'];
+                }
+            });
+
+            unset($output);
+
+            // To compatible with view we add profile id
+            array_walk($combinedData, function($value, $key) use (&$output, $id) {
+                $output[] = [
+                    'profile_id' => $id,
+                    'datetime' => $key,
+                    'volume' => $value,
+                ];
+            });
+
             return $output;
+        }
+
+        /**
+         * Get summarised volume as per commodity
+         *
+         * @see $this->commodities
+         * @return array Example format ['Power' => 11844, 'Gas' => 38063 ... ]
+         */
+        public function summary_volumes()
+        {
+            $profileCommodityMap = [];
+
+            // we map profile item to commodity
+            foreach ($this->profiles as $profile) {
+                $profileCommodityMap[$profile['id']] = $profile['commodity'];
+            }
+
+            // commodities with 0 volume count
+            $commodityVolumeArray = array_fill_keys(array_values($this->commodities), 0);
+
+            // we walk through each volume entry and add them to relevant commodity group
+            array_walk($this->volumes, function($item) use ($profileCommodityMap, &$commodityVolumeArray) {
+                $commodityId = $profileCommodityMap[$item['profile_id']];
+                $commodity = $this->commodities[$commodityId];
+                $commodityVolumeArray[$commodity] = $commodityVolumeArray[$commodity] + $item['volume'];
+            });
+
+            return $commodityVolumeArray;
         }
 
     }
